@@ -19,39 +19,66 @@ db.init_app(app)
 api = Api(app)
 
 class ClearSession(Resource):
-
     def delete(self):
-    
         session['page_views'] = None
         session['user_id'] = None
-
         return {}, 204
-
+api.add_resource(ClearSession, '/clear')
 class IndexArticle(Resource):
     
     def get(self):
         articles = [article.to_dict() for article in Article.query.all()]
         return articles, 200
 
+api.add_resource(IndexArticle, '/articles')
 class ShowArticle(Resource):
-
     def get(self, id):
         session['page_views'] = 0 if not session.get('page_views') else session.get('page_views')
         session['page_views'] += 1
 
         if session['page_views'] <= 3:
-
             article = Article.query.filter(Article.id == id).first()
             article_json = jsonify(article.to_dict())
-
             return make_response(article_json, 200)
 
         return {'message': 'Maximum pageview limit reached'}, 401
 
-api.add_resource(ClearSession, '/clear')
-api.add_resource(IndexArticle, '/articles')
 api.add_resource(ShowArticle, '/articles/<int:id>')
 
+class Login(Resource):
+    def post(self):
+        # Get username from JSON request
+        username = request.get_json()["username"]
 
+        # Match to db
+        user = db.session.query(User).filter_by(username=username).first()
+
+        # check if user exists
+        if not user:
+            return {"message": "User not found"}, 404
+
+        session["user_id"] = user.id
+        return user.to_dict(), 200
+
+api.add_resource(Login, "/login")
+
+class Logout(Resource):
+    def delete(self):
+        session["user_id"] = None
+        return {"message": "204: No Content"}, 204
+
+api.add_resource(Logout, "/logout")
+
+class CheckSession(Resource):
+    def get(self):
+        # Retrieve session's user by user id
+        user = db.session.query(User).filter(User.id == session.get("user_id")).first()
+        if not user:
+            return {}, 401
+        else:
+            return user.to_dict(), 200
+
+api.add_resource(CheckSession, "/check_session")
+    
 if __name__ == '__main__':
     app.run(port=5555, debug=True)
